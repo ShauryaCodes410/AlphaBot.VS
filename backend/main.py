@@ -98,19 +98,31 @@ DEFAULT_PLANT_NAMES = (
 )
 
 def _configured_default_plants() -> List[str]:
-    names: List[str] = []
-    config_path = os.path.join(BASE_DIR, "connections.json")
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, encoding="utf-8") as f:
-                cfg = json.load(f)
-            db_entry = cfg.get("databases", {}) if isinstance(cfg, dict) else {}
-            if isinstance(db_entry, dict) and db_entry:
-                names = list(db_entry.keys())
-        except Exception as e:
-            logger.error(f"Error reading default plant list: {e}")
-    if not names:
-        names = list(DEFAULT_PLANT_NAMES)
+    env_names = os.getenv("ALPHABOT_DEFAULT_PLANTS")
+
+    if env_names is not None and env_names.strip():
+        names = [
+            name.strip()
+            for name in env_names.split(",")
+            if name.strip()
+        ]
+    else:
+        names = []
+        config_path = os.path.join(BASE_DIR, "connections.json")
+
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, encoding="utf-8") as f:
+                    cfg = json.load(f)
+                db_entry = cfg.get("databases", {}) if isinstance(cfg, dict) else {}
+                if isinstance(db_entry, dict) and db_entry:
+                    names = list(db_entry.keys())
+            except Exception as e:
+                logger.error(f"Error reading default plant list: {e}")
+
+        if not names:
+            names = list(DEFAULT_PLANT_NAMES)
+
     found = []
     for name in names:
         if name in SYSTEM_DB_NAMES:
@@ -118,6 +130,7 @@ def _configured_default_plants() -> List[str]:
         db_path = os.path.join(BASE_DIR, f"{name}.db")
         if os.path.exists(db_path) and is_plant_db(db_path):
             found.append(name)
+
     return sorted(found)
 
 def get_federated_databases() -> List[str]:
