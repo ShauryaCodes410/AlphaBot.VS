@@ -112,19 +112,21 @@ Try these natural language queries:
 ```
 AlphaBot/
 ├── backend/
-│   ├── main.py                 # FastAPI app & federated engine
+│   ├── main.py                 # FastAPI app and query engine
+│   ├── accounts.py             # Users, sessions, uploaded databases
 │   ├── setup_databases.py      # Database generator
 │   ├── requirements.txt
+│   ├── services/workspace/     # Column profiles and per-database workspaces
+│   ├── tests/                  # pytest suite
+│   ├── scripts/                # One-off checks and the API harness
 │   └── *.db                    # 8 power plant databases
 ├── frontend/
-│   ├── app/
-│   │   ├── page.tsx           # Main dashboard
-│   │   └── layout.tsx
-│   ├── components/
-│   │   ├── QueryInterface.tsx  # Input component
-│   │   ├── ResultsDisplay.tsx  # Results container
-│   │   └── DataChart.tsx       # Visualization engine
+│   ├── app/                    # Pages, theme, tab icon
+│   ├── components/             # Landing page, query box, results, charts
+│   ├── lib/session.ts
 │   └── package.json
+├── docs/                       # Guides and older notes
+├── samples/                    # Example spreadsheets
 └── README.md
 ```
 
@@ -303,10 +305,10 @@ Get available metrics and dimensions.
 ```bash
 # Backend tests
 cd backend
-pytest test_main.py
+pytest
 
 # Test accuracy
-python run_api_test_harness.py
+python scripts/run_api_test_harness.py
 ```
 
 ---

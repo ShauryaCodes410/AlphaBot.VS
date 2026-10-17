@@ -10,12 +10,17 @@ interface QueryInterfaceProps {
   onQueryChange?: (q: string) => void;
   results?: any;
   conversationContext?: ConversationContext | null;
+  devMode?: boolean;
   onClearSession?: () => void;
   queryOverride?: string | null;
   onClearOverride?: () => void;
   metadataMetrics: string[];
   metadataDepts: string[];
   metadataRegions: string[];
+  metadataYears?: string[];
+  metadataGroups?: { title: string; items: string[] }[];
+  suggestedQueries?: string[];
+  selectedDb?: string;
 }
 
 interface CategorizedSuggestions {
@@ -117,7 +122,7 @@ function extractMetrics(sql: string, results: any[]): string[] {
   return ['revenue'];
 }
 
-export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRecent, liveKpis, onQueryChange, results, conversationContext, onClearSession, queryOverride, onClearOverride, metadataMetrics, metadataDepts, metadataRegions }: QueryInterfaceProps) {
+export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRecent, liveKpis, onQueryChange, results, conversationContext, devMode = false, onClearSession, queryOverride, onClearOverride, metadataMetrics, metadataDepts, metadataRegions, metadataYears = [], metadataGroups = [], suggestedQueries = [], selectedDb = 'default' }: QueryInterfaceProps) {
   const [query, setQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [categorizedSuggestions, setCategorizedSuggestions] = useState<CategorizedSuggestions>({
@@ -133,106 +138,39 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
   const skipSuggestRef = useRef(false);
 
   const getFollowUpQuestions = () => {
+    const pretty = (name: string) => name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const questionsFor = (metricName: string) => {
+      const capM = pretty(metricName);
+      const questions: string[] = [`${capM} trend`];
+      if (metadataYears.length >= 2) {
+        questions.push(`Compare ${capM} in ${metadataYears[0]} and ${metadataYears[metadataYears.length - 1]}`);
+      } else if (metadataYears.length === 1) {
+        questions.push(`${capM} in ${metadataYears[0]}`);
+      }
+      const group = metadataGroups.find(item => item.items.length > 0);
+      if (group) questions.push(`${capM} by ${group.title}`);
+      const alt = metadataMetrics.find(item => item !== metricName);
+      if (alt) questions.push(`Show ${pretty(alt)} instead`);
+      return questions.slice(0, 5);
+    };
+
     // Priority 1: use server-side conversation context (accurate, cross-refresh)
     if (conversationContext?.active_metric) {
-      const ctx = conversationContext;
-      const metric = ctx.active_metric!;
-      const capM = metric.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      const entities = ctx.comparison_entities || [];
-      const locFilters = (ctx.active_filters || []).filter(f =>
-        ['state', 'location', 'region'].includes(f.column)
-      );
-      const locVal = locFilters.length > 0 ? locFilters[0].value : null;
-      const year = ctx.active_timeframe?.value || null;
-      const questions: string[] = [];
-
-      if (entities.length >= 2) {
-        questions.push(`Compare both`);
-        questions.push(`Compare ${capM} in ${entities[0]} and ${entities[1]}`);
-        if (year) questions.push(`Same for ${parseInt(year) + 1 <= 2026 ? parseInt(year) + 1 : parseInt(year) - 1}`);
-        questions.push(`${capM} Trend in ${entities[0]}`);
-        questions.push(`Compare ${capM} Across Project Types`);
-      } else if (locVal) {
-        questions.push(`What about ${locVal === 'Gujarat' ? 'Rajasthan' : 'Gujarat'}?`);
-        if (year) questions.push(`Same for ${parseInt(year) + 1 <= 2026 ? parseInt(year) + 1 : parseInt(year) - 1}`);
-        questions.push(`${capM} Trend in ${locVal}`);
-        questions.push(`${capM} by Project Type in ${locVal}`);
-        questions.push(`Compare ${capM} Across States`);
-      } else {
-        questions.push(`Compare ${capM} Across States`);
-        if (year) questions.push(`Same for ${parseInt(year) + 1 <= 2026 ? parseInt(year) + 1 : parseInt(year) - 1}`);
-        questions.push(`Show ${capM} Trend`);
-        questions.push(`Top 3 Performing Plants by ${capM}`);
-        questions.push(`Compare ${capM} Across Project Types`);
-      }
-      // Always offer a metric switch
-      const altMetric = metric === 'revenue' ? 'budget_allocated' : 'revenue';
-      questions.push(`Show ${altMetric.replace(/_/g, ' ')} instead`);
-      return questions.slice(0, 5);
+      return questionsFor(conversationContext.active_metric);
     }
 
-    // Fallback: derive from SQL (legacy path, no session context)
     if (!results || !results.results) return [];
     const detectedMetrics = extractMetrics(results.sql_query, results.results);
-    const m = detectedMetrics[0] || 'revenue';
-    const cleanM = m.replace(/_/g, ' ');
-    const capM = cleanM.charAt(0).toUpperCase() + cleanM.slice(1);
-    const sqlLower = (results.sql_query || '').toLowerCase();
-    const depts = ['solar', 'wind', 'hybrid', 'hybrid-solar', 'hybrid-wind', 'sales', 'digital', 'marketing', 'hr'];
-    const regions = ['gujarat', 'karnataka', 'maharashtra', 'rajasthan', 'tamil nadu', 'north', 'south', 'east', 'west', 'central'];
-    const plants = ['diablo_canyon', 'three_mile_island', 'palo_verde', 'grand_gulf', 'vogtle', 'hinkley_point', 'kashiwazaki', 'darlington'];
-    const activeDept = depts.find(d => sqlLower.includes(`'${d}'`) || sqlLower.includes(`'${d.toLowerCase()}'`));
-    const activeRegion = regions.find(r => sqlLower.includes(`'${r}'`) || sqlLower.includes(`'${r.toLowerCase()}'`));
-    const activePlant = plants.find(p => sqlLower.includes(p));
-    const formatDept = (d: string) => {
-      if (d === 'hr' || d === 'digital') return d.toUpperCase();
-      return d.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-');
-    };
-    const formatRegion = (r: string) => r.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    const formatPlant = (p: string) => p.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    const questions: string[] = [];
-    if (activeDept) {
-      const dLabel = formatDept(activeDept);
-      questions.push(`Compare ${dLabel} and Solar ${capM}`);
-      questions.push(`${dLabel} ${capM} Trend`);
-      questions.push(`${dLabel} ${capM} by State`);
-      questions.push(`${dLabel} ${capM} by Plant`);
-      questions.push(`Top 3 Plants by ${dLabel} ${capM}`);
-    } else if (activeRegion) {
-      const rLabel = formatRegion(activeRegion);
-      questions.push(`${capM} by Project Type in ${rLabel}`);
-      questions.push(`${capM} Trend in ${rLabel}`);
-      questions.push(`Compare ${capM} in ${rLabel} and Gujarat`);
-      questions.push(`${capM} by Plant in ${rLabel}`);
-      questions.push(`Top 3 Plants by ${capM} in ${rLabel}`);
-    } else if (activePlant) {
-      const pLabel = formatPlant(activePlant);
-      questions.push(`${capM} by Project Type in ${pLabel}`);
-      questions.push(`${capM} Trend in ${pLabel}`);
-      questions.push(`Compare ${pLabel} and Palo Verde ${capM}`);
-      questions.push(`Top 3 Performing Plants by ${capM}`);
-      questions.push(`${pLabel} ${capM} by State`);
-    } else {
-      questions.push(`Compare ${capM} Across States`);
-      questions.push(`Show ${capM} Trend`);
-      questions.push(`Top 3 Performing Plants by ${capM}`);
-      questions.push(`Compare ${capM} Across Project Types`);
-      questions.push(`Compare ${capM} in 2023 and 2024`);
-    }
-    return questions.slice(0, 5);
+    const metricName = detectedMetrics[0] || metadataMetrics[0] || '';
+    if (!metricName) return [];
+    return questionsFor(metricName);
   };
 
   const metrics = metadataMetrics.map((x: string) => x.replace(/_/g, ' '));
-  const departments = metadataDepts;
-  const regions = metadataRegions;
 
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionListRef = useRef<HTMLDivElement>(null);
   const tagsRef = useRef<HTMLDivElement>(null);
-
-  const scrollToTags = () => {
-    tagsRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
 
   // Synchronize queryOverride prop to local query state
   useEffect(() => {
@@ -256,12 +194,13 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
         .slice(0, 40);
       
       completionsRef.current = Array.from(new Set([
-        ...STATIC_COMPLETIONS,
         ...serverMetrics,
+        ...metadataYears,
         ...serverCats,
+        'trend', 'compare', 'breakdown', 'by year',
       ])).slice(0, 80);
     }
-  }, [metadataMetrics, metadataDepts, metadataRegions]);
+  }, [metadataMetrics, metadataDepts, metadataRegions, metadataYears]);
 
   // Live suggestions as user types (120ms debounce)
   useEffect(() => {
@@ -270,10 +209,19 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
       skipSuggestRef.current = false;
       return;
     }
+    if (!query.trim()) {
+      setCategorizedSuggestions({ metrics: [], analysis: [], comparisons: [] });
+      setPreview(null);
+      setShowSuggestions(false);
+      setSelectedIndex(-1);
+      return;
+    }
+    setCategorizedSuggestions({ metrics: [], analysis: [], comparisons: [] });
+    setShowSuggestions(false);
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/suggest?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`/api/suggest?q=${encodeURIComponent(query)}&db=${encodeURIComponent(selectedDb)}`, { credentials: 'include' });
         if (!cancelled && res.ok) {
           const data = await res.json();
           if (!cancelled) {
@@ -287,7 +235,7 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
       } catch {}
     }, 200);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [query, isFocused]);
+  }, [query, isFocused, selectedDb]);
 
   // Ghost text: derive from query synchronously — useMemo avoids extra re-render
   const ghostText = useMemo(() => {
@@ -409,25 +357,20 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
   return (
     <div>
       {/* Conversation Context Pill — shown when session has active state */}
-      {conversationContext?.active_metric && (
-        <div className="mb-3 flex items-center gap-1.5 flex-wrap">
-          <span className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-widest mr-0.5">Context</span>
-          {/* Active metric */}
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
-            <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+      {devMode && conversationContext?.active_metric && (
+        <div className="mb-4">
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Context</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+          <span className="max-w-full truncate rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
             {conversationContext.active_metric.replace(/_/g, ' ')}
           </span>
-          {/* Active location filters */}
           {(conversationContext.active_filters || []).filter(f => ['state','location','region'].includes(f.column)).map((f, idx) => (
-            <span key={`${f.column}-${f.value}-${idx}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/></svg>
+            <span key={`${f.column}-${f.value}-${idx}`} className="max-w-full truncate rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
               {f.value}
             </span>
           ))}
-          {/* Active timeframe */}
           {conversationContext.active_timeframe?.value && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
-              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/></svg>
+            <span className="max-w-full truncate rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
               {conversationContext.active_timeframe.value}
             </span>
           )}
@@ -440,19 +383,20 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
             Clear
           </button>
+          </div>
         </div>
       )}
 
       {/* Search input with ghost text overlay */}
-      <div className="relative mb-3 rounded-2xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 focus-within:ring-2 focus-within:ring-blue-500 dark:focus-within:ring-blue-600 focus-within:border-transparent shadow-sm transition-all">
-        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+      <div className="relative mb-5 rounded-full border border-slate-200 bg-white shadow-sm focus-within:ring-2 focus-within:ring-emerald-400/20 dark:border-white/10 dark:bg-white/[0.04]">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           {isLoading
-            ? <svg className="animate-spin h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24">
+            ? <svg className="animate-spin h-4 w-4 text-stone-400" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
               </svg>
-            : <svg className="h-4 w-4 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            : <svg className="h-4 w-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
               </svg>
           }
         </div>
@@ -481,10 +425,11 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
           }}
           onBlur={() => {
             setIsFocused(false);
+            setShowSuggestions(false);
           }}
           onKeyDown={handleKeyDown}
           placeholder={query ? '' : 'Ask about your data…'}
-          className="w-full pl-10 pr-4 py-2.5 text-sm text-slate-850 dark:text-slate-100 placeholder-slate-450 rounded-2xl focus:outline-none font-medium"
+          className="w-full pl-11 pr-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 rounded-full focus:outline-none"
           style={{ background: 'transparent', position: 'relative', zIndex: 1 }}
         />
 
@@ -498,10 +443,10 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
         )}
 
         {/* Suggestions dropdown */}
-        {showSuggestions && flatSuggestions.length > 0 && (
+        {query.trim() && showSuggestions && flatSuggestions.length > 0 && (
           <div
             ref={suggestionListRef}
-            className="absolute z-20 w-full bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl shadow-2xl mt-2 max-h-72 overflow-y-auto p-2 flex flex-col gap-1 transition-colors duration-200"
+            className="absolute z-20 left-2 right-2 bg-white dark:bg-slate-900 rounded-2xl shadow-lg mt-2 max-h-72 overflow-y-auto py-2"
           >
             {(['metrics', 'analysis', 'comparisons'] as const).map(cat => {
               const items = categorizedSuggestions[cat];
@@ -509,17 +454,17 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
               const label = cat === 'metrics' ? 'Core Queries' : cat === 'analysis' ? 'Suggested Queries' : 'Comparisons';
               return (
                 <div key={cat}>
-                  <div className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider px-3 py-1">{label}</div>
+                  <div className="px-3 py-1 text-xs text-slate-400 dark:text-slate-500">{label}</div>
                   <ul>
                     {items.map((s, idx) => {
                       const fi = getFlatIndex(cat, idx);
                       return (
                         <li
                           key={`${cat}-${idx}`}
-                          className={`px-3 py-2 text-sm cursor-pointer rounded-xl font-medium transition-all ${
+                          className={`px-3 py-2 text-sm cursor-pointer rounded-xl mx-1 ${
                             selectedIndex === fi 
-                              ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400' 
-                              : 'hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-200'
+                              ? 'bg-emerald-50 text-emerald-950 dark:bg-white/[0.06] dark:text-white' 
+                              : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/[0.04]'
                           }`}
                           onMouseDown={e => { e.preventDefault(); handleSuggestionClick(s); }}
                         >
@@ -535,61 +480,24 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
         )}
       </div>
 
-      {/* Real-time Copilot Thought Stream Panel */}
       {query.trim().length > 0 && (
-        <div className="bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 rounded-xl p-3 mb-3 shadow-sm transition-all duration-300">
-          <div className="flex items-center justify-between mb-2 pb-1 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs">🤖</span>
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">Copilot Live Analysis</span>
-            </div>
-            {isLoading ? (
-              <div className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-blue-500 dark:bg-blue-400 rounded-full animate-ping" />
-                <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider animate-pulse">Analyzing...</span>
-              </div>
-            ) : (
-              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/30 uppercase tracking-wider">Ready</span>
-            )}
-          </div>
-          
-          <div className="flex flex-wrap gap-1.5">
-            {preview ? (
-              <>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 shadow-sm">
-                  Intent: <span className="font-semibold ml-1 capitalize text-slate-900 dark:text-slate-100">{preview.intent || 'Sum'}</span>
-                </span>
-                {preview.metric && preview.metric !== 'None' && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 shadow-sm">
-                    Metric: <span className="font-semibold ml-1 capitalize text-slate-900 dark:text-slate-100">{preview.metric}</span>
-                  </span>
-                )}
-                {preview.dimension && preview.dimension !== 'None' && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 shadow-sm">
-                    By: <span className="font-semibold ml-1 capitalize text-slate-900 dark:text-slate-100">{preview.dimension}</span>
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium italic animate-pulse">Resolving schema...</span>
-            )}
-          </div>
-
-          {preview && preview.metric && preview.metric !== 'None' && (
-            <div className="mt-2 text-xs text-slate-750 dark:text-slate-350 font-medium bg-slate-100/50 dark:bg-slate-800/40 rounded-lg px-2 py-1 border border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between shadow-sm transition-all duration-300">
-              <span>Target Metric: <strong className="font-semibold text-slate-900 dark:text-slate-100">{preview.metric}</strong></span>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">Column: {preview.metric.toLowerCase().replace(/ /g, '_')}</span>
-            </div>
-          )}
-        </div>
+        <p className="mb-4 text-xs text-stone-500 dark:text-slate-400">
+          {isLoading
+            ? 'Running'
+            : preview
+              ? [preview.intent || 'Sum', preview.metric && preview.metric !== 'None' ? preview.metric : '', preview.dimension && preview.dimension !== 'None' ? `by ${preview.dimension}` : ''].filter(Boolean).join(' · ')
+              : 'Reading the question'}
+        </p>
       )}
 
       {/* Recent Queries */}
       {recentQueries && recentQueries.length > 0 && (
-        <div className="mt-2 pt-2">
-          <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">Recent</p>
-          <div className="space-y-1">
-            {recentQueries.map((item, idx) => (
+        <div className="mt-6">
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Recent queries</p>
+          <div className="space-y-0.5">
+            {recentQueries.map((item, idx) => {
+              const active = query === item.query;
+              return (
               <button
                 key={idx}
                 type="button"
@@ -600,24 +508,26 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
                   if (onSelectRecent) onSelectRecent(item);
                 }}
                 disabled={isLoading}
-                className="w-full flex items-center text-left px-3 py-2 rounded-xl text-xs text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100 hover:bg-gray-50 dark:hover:bg-slate-800 border border-transparent hover:border-gray-100 dark:hover:border-slate-800 transition-all truncate"
+                className={`block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm ${
+                  active
+                    ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-400/10 dark:text-emerald-100'
+                    : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/[0.05] dark:hover:text-white'
+                }`}
                 title={item.query}
               >
-                <svg className="w-3.5 h-3.5 mr-2 text-gray-400 dark:text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <span className="truncate font-medium">{item.query}</span>
+                {item.query}
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
       {/* Dynamic Suggested Follow-up Questions in Left Sidebar */}
       {query.trim() !== '' && results && results.results && (
-        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
-          <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">Suggested Follow-ups</p>
-          <div className="space-y-1.5">
+        <div className="mt-6">
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Suggested queries</p>
+          <div className="space-y-0.5">
             {getFollowUpQuestions().map((q, idx) => (
               <button
                 key={idx}
@@ -629,12 +539,10 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
                   runQuery(q);
                 }}
                 disabled={isLoading}
-                className="w-full flex items-center justify-between text-left px-3 py-2 bg-gray-50 dark:bg-slate-850/60 hover:bg-blue-50 dark:hover:bg-blue-950/20 border border-gray-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-900 rounded-xl text-xs font-semibold text-gray-700 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 transition-all group"
+                className="block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/[0.05] dark:hover:text-white"
+                title={q}
               >
-                <span className="truncate">{q}</span>
-                <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                </svg>
+                {q}
               </button>
             ))}
           </div>
@@ -642,61 +550,39 @@ export function QueryInterface({ onSubmit, isLoading, recentQueries, onSelectRec
       )}
 
       {/* Suggested Questions (empty state) */}
-      {query.trim() === '' && (
-        <div className="space-y-1 mt-4">
-          <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">Suggested</p>
-          {[
-            'Top Capacity Plants',
-            'Revenue Trend',
-            'Budget Allocated by State',
-            'Completion Percentage by Project Type',
-            'Delay Days by Contractor',
-          ].map((ex, idx) => (
+      {query.trim() === '' && suggestedQueries.length > 0 && (
+        <div className="mt-6 space-y-0.5">
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Suggested queries</p>
+          {suggestedQueries.map((ex, idx) => (
             <button
               key={idx}
               type="button"
               onMouseDown={e => { e.preventDefault(); setQuery(ex); if (onQueryChange) onQueryChange(ex); runQuery(ex); }}
               disabled={isLoading}
-              className="w-full text-left px-3 py-2.5 bg-gray-50 dark:bg-slate-850/60 hover:bg-blue-50 dark:hover:bg-blue-950/20 border border-gray-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-900 rounded-xl text-xs font-semibold text-gray-700 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 transition-all flex items-center justify-between group"
+              className="block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/[0.05] dark:hover:text-white"
             >
-              <span>{ex}</span>
-              <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/>
-              </svg>
+              {ex}
             </button>
           ))}
         </div>
       )}
 
-      {/* Animated scroll indicator for metrics, departments & regions */}
-      <div 
-        onClick={scrollToTags}
-        className="flex flex-col items-center justify-center py-4 mt-6 text-slate-400 dark:text-slate-500 cursor-pointer group hover:text-blue-500 transition-colors animate-pulse border-t border-gray-100 dark:border-slate-800"
-      >
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 group-hover:text-blue-500 transition-colors">
-          Scroll for Metrics, Project Types & Locations
-        </span>
-        <svg className="w-3.5 h-3.5 mt-0.5 text-slate-400 dark:text-slate-500 group-hover:text-blue-500 transition-colors animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
-
-      {/* Interactive tag chips */}
-      <div ref={tagsRef} className="space-y-4 mt-20 pt-8 border-t border-gray-100 dark:border-slate-800">
+      <div ref={tagsRef} className="mt-8 space-y-6">
         {[
-          { title: 'Metrics', items: metrics.length > 0 ? metrics : ['Revenue', 'Capacity MW', 'Budget Allocated', 'Budget Used', 'Budget Remaining', 'Completion %', 'Delay Days'] },
-          { title: 'Project Types', items: departments.length > 0 ? departments : ['Solar', 'Wind', 'Hybrid', 'Hybrid-Solar', 'Hybrid-Wind'] },
-          { title: 'Locations', items: regions.length > 0 ? regions : ['Gujarat', 'Karnataka', 'Maharashtra', 'Rajasthan', 'Tamil Nadu'] },
-        ].map(({ title, items }) => (
+          { title: 'Metrics', items: metrics },
+          { title: 'Years', items: metadataYears },
+          ...metadataGroups,
+        ].filter(group => group.items.length > 0).map(({ title, items }) => (
           <div key={title}>
-            <h3 className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">{title}</h3>
+            <h3 className="mb-2 text-xs text-slate-500 dark:text-slate-400">{title}</h3>
             <div className="flex flex-wrap gap-1.5">
               {items.map(item => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => handleTagClick(item)}
-                  className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20 text-gray-600 dark:text-slate-350 hover:text-blue-700 dark:hover:text-blue-400 text-xs rounded-full transition-all cursor-pointer font-medium"
+                  title={item}
+                  className="max-w-full truncate rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600 hover:border-emerald-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300 dark:hover:border-emerald-400/40 dark:hover:text-white"
                 >
                   {item}
                 </button>

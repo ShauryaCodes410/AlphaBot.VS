@@ -1,4 +1,17 @@
 fastapi
 uvicorn[standard]
 httpx
-sqlalchemy
+
+# Data processing
+pandas
+openpyxl
+
+# File upload support (required by FastAPI for UploadFile and Form)
+python-multipart
+
+# Environment variable loading from .env file
+python-dotenv
+
+# Testing
+pytest
+pytest-asyncio

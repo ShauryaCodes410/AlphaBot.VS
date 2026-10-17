@@ -1,0 +1,101 @@
+record_date,department,region,status,revenue,cost,profit,completion_rate,delay_days
+2024-10-24,Operations,Rajasthan,In Progress,217532,81964,135568,81,0
+2024-12-24,Engineering,Gujarat,In Progress,483974,149498,334476,56,0
+2024-10-27,Engineering,Rajasthan,Delayed,342927,204921,138006,96,25
+2024-10-16,Sales,Tamil Nadu,Delayed,157803,68205,89598,63,23
+2024-11-02,Marketing,Rajasthan,Delayed,487089,278673,208416,54,21
+2024-10-14,Sales,Gujarat,In Progress,312634,138584,174050,81,0
+2024-10-10,Customer Support,Karnataka,Completed,147366,35951,111415,97,0
+2024-10-03,Sales,Maharashtra,Delayed,88253,38491,49762,69,19
+2024-11-13,Engineering,Rajasthan,In Progress,309362,215708,93654,57,0
+2024-10-19,Sales,Karnataka,On Hold,371896,287339,84557,84,0
+2024-12-11,Operations,Maharashtra,On Hold,428670,135144,293526,73,0
+2024-12-08,Marketing,Karnataka,Delayed,221894,166863,55031,77,2
+2024-12-19,Marketing,Tamil Nadu,On Hold,131583,91098,40485,86,0
+2024-11-12,Marketing,Gujarat,On Hold,284821,118578,166243,71,0
+2024-10-11,Operations,Rajasthan,On Hold,305153,143530,161623,71,0
+2024-11-02,Engineering,Tamil Nadu,In Progress,159042,40603,118439,60,0
+2024-11-16,Customer Support,Gujarat,In Progress,313098,33731,279367,97,0
+2024-12-27,Engineering,Karnataka,Completed,55318,34884,20434,82,0
+2024-11-22,Operations,Gujarat,In Progress,356664,169844,186820,70,0
+2024-12-05,Customer Support,Rajasthan,On Hold,88334,33436,54898,89,0
+2024-12-17,Customer Support,Karnataka,In Progress,297483,218713,78770,71,0
+2024-10-11,Customer Support,Maharashtra,Delayed,107014,62533,44481,59,28
+2024-12-21,Customer Support,Rajasthan,Completed,253850,128389,125461,93,0
+2024-10-04,Engineering,Tamil Nadu,On Hold,416278,128566,287712,51,0
+2024-11-02,Engineering,Rajasthan,Completed,189452,103319,86133,79,0
+2024-12-21,Marketing,Rajasthan,Delayed,117317,58752,58565,86,7
+2024-11-11,Marketing,Gujarat,In Progress,254698,164823,89875,89,0
+2024-11-26,Operations,Tamil Nadu,Completed,74903,51861,23042,63,0
+2024-12-22,Customer Support,Tamil Nadu,Delayed,93493,49764,43729,85,12
+2024-11-26,Marketing,Maharashtra,Delayed,352301,132890,219411,69,25
+2024-12-25,Operations,Gujarat,Delayed,266478,75217,191261,76,24
+2024-10-16,Sales,Gujarat,Completed,420328,161188,259140,92,0
+2024-12-28,Marketing,Maharashtra,In Progress,117967,75404,42563,71,0
+2024-11-14,Engineering,Maharashtra,In Progress,212420,106154,106266,58,0
+2024-10-04,Engineering,Maharashtra,On Hold,77912,31864,46048,90,0
+2024-12-21,Marketing,Rajasthan,In Progress,154393,74509,79884,86,0
+2024-11-30,Engineering,Maharashtra,On Hold,430935,189425,241510,86,0
+2024-12-30,Operations,Gujarat,In Progress,163196,113184,50012,65,0
+2024-11-30,Engineering,Tamil Nadu,On Hold,250293,78501,171792,91,0
+2024-11-06,Engineering,Rajasthan,On Hold,171370,84070,87300,84,0
+2024-11-14,Operations,Gujarat,In Progress,230455,65538,164917,65,0
+2024-10-17,Customer Support,Rajasthan,Delayed,73123,26648,46475,88,23
+2024-11-20,Sales,Rajasthan,In Progress,249503,68511,180992,54,0
+2024-11-13,Marketing,Karnataka,Delayed,141483,30999,110484,89,17
+2024-12-04,Marketing,Gujarat,Delayed,97927,64659,33268,68,11
+2024-10-12,Customer Support,Maharashtra,In Progress,326209,58969,267240,80,0
+2024-12-04,Operations,Rajasthan,Delayed,375455,130100,245355,64,18
+2024-10-20,Customer Support,Rajasthan,On Hold,101806,45672,56134,59,0
+2024-10-22,Sales,Karnataka,In Progress,402803,165396,237407,76,0
+2024-11-16,Marketing,Karnataka,In Progress,226987,27056,199931,89,0
+2024-11-08,Customer Support,Karnataka,In Progress,149113,46678,102435,84,0
+2024-10-07,Engineering,Karnataka,Delayed,197972,73183,124789,69,28
+2024-10-11,Engineering,Gujarat,Completed,178779,85753,93026,92,0
+2024-12-02,Operations,Gujarat,In Progress,487877,256201,231676,77,0
+2024-11-15,Engineering,Maharashtra,In Progress,273995,100825,173170,51,0
+2024-12-15,Marketing,Maharashtra,Delayed,249975,186682,63293,62,24
+2024-10-07,Operations,Tamil Nadu,Completed,154347,38555,115792,97,0
+2024-11-12,Customer Support,Gujarat,Delayed,145151,33574,111577,92,22
+2024-11-02,Engineering,Rajasthan,On Hold,318232,72164,246068,73,0
+2024-11-27,Sales,Rajasthan,Delayed,93862,31848,62014,81,16
+2024-10-04,Marketing,Rajasthan,In Progress,111376,38361,73015,99,0
+2024-11-22,Customer Support,Gujarat,Completed,439972,206616,233356,76,0
+2024-12-18,Sales,Karnataka,Delayed,70901,25020,45881,98,30
+2024-12-06,Engineering,Tamil Nadu,Delayed,299650,214159,85491,56,19
+2024-12-15,Operations,Gujarat,Completed,242267,105905,136362,52,0
+2024-10-18,Sales,Karnataka,Completed,146473,75674,70799,80,0
+2024-11-18,Sales,Rajasthan,Completed,118580,59502,59078,89,0
+2024-10-17,Engineering,Maharashtra,On Hold,104732,79461,25271,62,0
+2024-11-25,Customer Support,Rajasthan,Delayed,257891,133341,124550,71,14
+2024-11-09,Sales,Rajasthan,In Progress,137993,48622,89371,50,0
+2024-12-08,Engineering,Maharashtra,Completed,231853,71286,160567,60,0
+2024-11-25,Operations,Maharashtra,On Hold,221431,137354,84077,93,0
+2024-11-13,Engineering,Tamil Nadu,Delayed,120439,43385,77054,86,4
+2024-10-29,Customer Support,Tamil Nadu,Completed,380614,47352,333262,63,0
+2024-11-23,Customer Support,Gujarat,On Hold,104504,61302,43202,90,0
+2024-11-25,Marketing,Tamil Nadu,In Progress,343855,123139,220716,62,0
+2024-10-02,Engineering,Maharashtra,Delayed,333802,88439,245363,78,15
+2024-10-08,Operations,Tamil Nadu,On Hold,100021,66883,33138,92,0
+2024-12-21,Sales,Gujarat,Delayed,318987,132088,186899,66,12
+2024-10-04,Operations,Tamil Nadu,On Hold,477897,240582,237315,90,0
+2024-10-17,Marketing,Karnataka,In Progress,88403,25219,63184,89,0
+2024-10-15,Sales,Gujarat,Delayed,410444,142848,267596,55,27
+2024-11-29,Engineering,Tamil Nadu,Delayed,146403,53542,92861,77,16
+2024-12-10,Marketing,Rajasthan,Delayed,275643,191106,84537,98,7
+2024-11-19,Operations,Maharashtra,On Hold,54930,32932,21998,71,0
+2024-10-28,Engineering,Gujarat,On Hold,178919,119780,59139,57,0
+2024-12-26,Operations,Gujarat,In Progress,66180,49311,16869,90,0
+2024-12-20,Sales,Karnataka,On Hold,249567,56614,192953,70,0
+2024-12-23,Engineering,Rajasthan,Delayed,348860,21539,327321,90,12
+2024-10-24,Sales,Rajasthan,Delayed,441445,146107,295338,70,30
+2024-11-29,Marketing,Karnataka,Delayed,216243,131310,84933,77,20
+2024-10-02,Operations,Rajasthan,On Hold,104676,59447,45229,57,0
+2024-10-16,Customer Support,Maharashtra,On Hold,85989,48980,37009,62,0
+2024-10-28,Marketing,Gujarat,On Hold,101084,61276,39808,74,0
+2024-12-21,Customer Support,Tamil Nadu,On Hold,407444,139752,267692,61,0
+2024-10-25,Sales,Maharashtra,In Progress,93527,45078,48449,61,0
+2024-12-10,Engineering,Maharashtra,On Hold,278312,40845,237467,56,0
+2024-11-17,Operations,Rajasthan,In Progress,254726,168764,85962,58,0
+2024-10-05,Operations,Maharashtra,Completed,336966,239983,96983,63,0
+2024-11-23,Engineering,Karnataka,Delayed,228751,49547,179204,97,23

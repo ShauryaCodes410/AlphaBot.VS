@@ -137,9 +137,10 @@ interface DataChartProps {
   results: any[];
   unit: string;
   darkMode?: boolean;
+  title?: string;
 }
 
-export function DataChart({ results, unit, darkMode }: DataChartProps) {
+export function DataChart({ results, unit, darkMode, title }: DataChartProps) {
   const [timeAgg, setTimeAgg] = useState<'detailed' | 'yearly'>('detailed');
   const [chartMode, setChartMode] = useState<'best' | 'alternative'>('best');
 
@@ -235,16 +236,16 @@ export function DataChart({ results, unit, darkMode }: DataChartProps) {
 
   // shared palette - rich and professional
   const borderColors = [
-    'rgb(59, 130, 246)', 'rgb(16, 185, 129)', 'rgb(249, 115, 22)',
-    'rgb(139, 92, 246)', 'rgb(236, 72, 153)', 'rgb(234, 179, 8)',
-    'rgb(20, 184, 166)', 'rgb(239, 68, 68)', 'rgb(99, 102, 241)', 'rgb(168, 85, 247)'
+    'rgb(16, 185, 129)', 'rgb(96, 165, 250)', 'rgb(217, 164, 65)',
+    'rgb(45, 212, 191)', 'rgb(148, 163, 184)', 'rgb(52, 211, 153)',
+    'rgb(125, 211, 252)', 'rgb(251, 191, 36)', 'rgb(110, 231, 183)', 'rgb(147, 197, 253)'
   ];
 
   // Dynamic colors for dark mode support
   const isDark = !!darkMode;
-  const textColor = isDark ? 'rgba(148, 163, 184, 0.9)' : 'rgba(71, 85, 105, 0.9)';
-  const gridColor = isDark ? 'rgba(51, 65, 85, 0.35)' : 'rgba(226, 232, 240, 0.8)';
-  const legendColor = isDark ? 'rgba(241, 245, 249, 0.9)' : 'rgba(15, 23, 42, 0.9)';
+  const textColor = isDark ? 'rgba(168, 178, 172, 0.95)' : 'rgba(71, 85, 105, 0.9)';
+  const gridColor = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(226, 232, 240, 0.8)';
+  const legendColor = isDark ? 'rgba(231, 238, 234, 0.95)' : 'rgba(15, 23, 42, 0.9)';
 
   // Dynamic scale assignment (Dual Y-Axis and logarithmic checks)
   let dynamicScales: any = {
@@ -288,8 +289,9 @@ export function DataChart({ results, unit, darkMode }: DataChartProps) {
             smallerKey: maxA > maxB ? keyB : keyA
           };
           
-          const labelLarger = (dualAxisConfig.largerKey || '').replace(/_/g, ' ').toUpperCase();
-          const labelSmaller = (dualAxisConfig.smallerKey || '').replace(/_/g, ' ').toUpperCase();
+          const prettyAxis = (key: string) => key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+          const labelLarger = prettyAxis(dualAxisConfig.largerKey || '');
+          const labelSmaller = prettyAxis(dualAxisConfig.smallerKey || '');
 
           dynamicScales = {
             x: {
@@ -369,6 +371,22 @@ export function DataChart({ results, unit, darkMode }: DataChartProps) {
     }
   }
 
+  const compactTick = (value: unknown) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return String(value ?? '');
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (abs >= 10_000) return `${Math.round(n / 1_000)}K`;
+    return n.toLocaleString();
+  };
+  if (dynamicScales.y?.ticks) {
+    dynamicScales.y.ticks.maxTicksLimit = 6;
+    dynamicScales.y.ticks.callback = compactTick;
+  }
+  if (dynamicScales.y1?.ticks) {
+    dynamicScales.y1.ticks.maxTicksLimit = 6;
+    dynamicScales.y1.ticks.callback = compactTick;
+  }
   const scales = dynamicScales;
 
   // ── Time-agg toggle (only shown when data has detailed dates or is a multi-year comparison) ────────────
@@ -376,69 +394,63 @@ export function DataChart({ results, unit, darkMode }: DataChartProps) {
 
   const renderVisualizationHeader = () => {
     const hasChartToggle = bestChart !== alternativeChart;
-    if (!showAggToggle && !hasChartToggle) return null;
+    const heading = (title || 'Result').replace(/_/g, ' ');
 
     return (
-      <div className="flex items-center justify-between mb-4 border-b border-gray-100 dark:border-slate-800 pb-2.5">
-        {/* Left Side: Time Aggregation Toggle */}
-        <div>
-          {showAggToggle ? (
-            <div className="inline-flex bg-gray-100 dark:bg-slate-850 p-0.5 rounded-xl border border-gray-200/50 dark:border-slate-800 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-white/10">
+        <h3 className="min-w-0 flex-1 truncate text-sm font-medium capitalize text-slate-900 dark:text-white" title={heading}>
+          {heading}
+        </h3>
+        <div className="flex flex-wrap items-center gap-2">
+          {showAggToggle && (
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-white/10 dark:bg-white/[0.04]">
               <button
                 type="button"
                 onClick={() => setTimeAgg('detailed')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                className={`rounded-md px-3 py-1.5 text-xs font-medium ${
                   timeAgg === 'detailed'
-                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200/50 dark:border-slate-650/50'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    ? 'bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-slate-100'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
-                Detailed Dates
+                Detailed
               </button>
               <button
                 type="button"
                 onClick={() => setTimeAgg('yearly')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                className={`rounded-md px-3 py-1.5 text-xs font-medium ${
                   timeAgg === 'yearly'
-                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200/50 dark:border-slate-650/50'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    ? 'bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-slate-100'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
-                Aggregate Yearly
+                Yearly
               </button>
             </div>
-          ) : (
-            <span className="text-xs font-bold text-gray-405 dark:text-slate-500 uppercase tracking-wider">Analysis Chart</span>
           )}
-        </div>
-
-        {/* Right Side: Chart Style Toggle */}
-        <div>
           {hasChartToggle && (
-            <div className="inline-flex bg-gray-100 dark:bg-slate-850 p-0.5 rounded-xl border border-gray-200/50 dark:border-slate-800 shadow-sm">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-white/10 dark:bg-white/[0.04]">
               <button
                 type="button"
                 onClick={() => setChartMode('best')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`rounded-md px-3 py-1.5 text-xs font-medium ${
                   chartMode === 'best'
-                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200/50 dark:border-slate-650/50'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    ? 'bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-slate-100'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
-                {bestChart === 'line' ? '📈' : bestChart === 'bar' ? '📊' : '🍩'}
-                {bestChart.charAt(0).toUpperCase() + bestChart.slice(1)} (Best)
+                {bestChart.charAt(0).toUpperCase() + bestChart.slice(1)}
               </button>
               <button
                 type="button"
                 onClick={() => setChartMode('alternative')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
+                className={`rounded-md px-3 py-1.5 text-xs font-medium ${
                   chartMode === 'alternative'
-                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200/50 dark:border-slate-650/50'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'
+                    ? 'bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-slate-100'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
-                {alternativeChart === 'line' ? '📈' : alternativeChart === 'bar' ? '📊' : '🍩'}
-                {alternativeChart.charAt(0).toUpperCase() + alternativeChart.slice(1)} (Alternative)
+                {alternativeChart.charAt(0).toUpperCase() + alternativeChart.slice(1)}
               </button>
             </div>
           )}
@@ -450,16 +462,16 @@ export function DataChart({ results, unit, darkMode }: DataChartProps) {
   // ── Single-row / multi-metric (e.g. "show all metrics for 2026") ─────────
   if (results.length === 1 && numericKeys.length > 1) {
     const data = {
-      labels: numericKeys.map(k => k.replace(/_/g, ' ').toUpperCase()),
+      labels: numericKeys.map(k => k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())),
       datasets: [{
         label: unit,
         data: numericKeys.map(k => firstRow[k]),
         backgroundColor: activeChart === 'doughnut'
           ? borderColors.map(c => c.replace('rgb', 'rgba').replace(')', ', 0.82)'))
           : activeChart === 'line'
-            ? 'rgba(59, 130, 246, 0.08)'
+            ? 'rgba(16, 185, 129, 0.08)'
             : borderColors.map(c => c.replace('rgb', 'rgba').replace(')', ', 0.82)')),
-        borderColor: activeChart === 'doughnut' ? borderColors : 'rgb(59, 130, 246)',
+        borderColor: activeChart === 'doughnut' ? borderColors : 'rgb(16, 185, 129)',
         borderWidth: activeChart === 'line' ? 2 : 1,
         fill: activeChart === 'line',
         tension: 0.35,
@@ -471,13 +483,17 @@ export function DataChart({ results, unit, darkMode }: DataChartProps) {
       indexAxis: isHorizontalBar ? ('y' as const) : ('x' as const),
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 8, right: 12, bottom: 4, left: 4 } },
       ...(activeChart !== 'doughnut' ? { scales } : {}),
       plugins: {
         legend: {
           display: activeChart === 'doughnut',
           labels: {
             color: legendColor,
-            font: { family: 'Inter, system-ui, sans-serif', weight: 600, size: 11 }
+            font: { family: 'Inter, system-ui, sans-serif', weight: 500, size: 11 },
+            boxWidth: 8,
+            boxHeight: 8,
+            padding: 12
           }
         },
         tooltip: {
@@ -494,7 +510,7 @@ export function DataChart({ results, unit, darkMode }: DataChartProps) {
     return (
       <div className="w-full">
         {renderVisualizationHeader()}
-        <div className="h-[390px] flex items-center justify-center">
+        <div className="h-[390px] pt-1">
           {activeChart === 'line'    && <Line     data={data} options={options as any} />}
           {activeChart === 'bar'     && <Bar      data={data} options={options as any} />}
           {activeChart === 'doughnut'&& <Doughnut data={data} options={options as any} />}
@@ -515,7 +531,7 @@ export function DataChart({ results, unit, darkMode }: DataChartProps) {
         ? color.replace('rgb', 'rgba').replace(')', ', 0.08)')
         : color.replace('rgb', 'rgba').replace(')', ', 0.82)');
       return {
-        label: metric === 'value' ? (unit.toUpperCase() || 'TOTAL') : metric.replace(/_/g, ' ').toUpperCase(),
+        label: metric === 'value' ? (unit || 'Total') : metric.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
         data: displayResults.map(r => r[metric]),
         backgroundColor: activeChart === 'doughnut'
           ? borderColors.map(c => c.replace('rgb', 'rgba').replace(')', ', 0.82)'))
@@ -535,6 +551,7 @@ export function DataChart({ results, unit, darkMode }: DataChartProps) {
     const baseOptions = {
       responsive: true,
       maintainAspectRatio: false,
+      layout: { padding: { top: 8, right: 12, bottom: 4, left: 4 } },
       ...(activeChart !== 'doughnut' ? { scales } : {}),
       plugins: {
         legend: {
@@ -542,7 +559,10 @@ export function DataChart({ results, unit, darkMode }: DataChartProps) {
           position: activeChart === 'doughnut' ? ('right' as const) : ('top' as const),
           labels: {
             color: legendColor,
-            font: { family: 'Inter, system-ui, sans-serif', weight: 600, size: 11 }
+            font: { family: 'Inter, system-ui, sans-serif', weight: 500, size: 11 },
+            boxWidth: 8,
+            boxHeight: 8,
+            padding: 12
           }
         },
         tooltip: {
@@ -564,7 +584,7 @@ export function DataChart({ results, unit, darkMode }: DataChartProps) {
     return (
       <div className="w-full">
         {renderVisualizationHeader()}
-        <div className="h-[390px] flex items-center justify-center">
+        <div className="h-[390px] pt-1">
           {activeChart === 'line'    && <Line     data={chartData} options={baseOptions as any} />}
           {activeChart === 'bar'     && <Bar      data={chartData} options={barOptions  as any} />}
           {activeChart === 'doughnut'&& <Doughnut data={chartData} options={baseOptions as any} />}

@@ -86,6 +86,7 @@ interface ResultsDisplayProps {
   detectedYear?: string | null;
   cacheCatalog?: any[];
   lineageNodes?: any[];
+  queryLabel?: string;
 }
 
 const getMetricDisplayName = (key: string) => {
@@ -93,131 +94,58 @@ const getMetricDisplayName = (key: string) => {
   return key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 };
 
+const getAggregationLabel = (agg?: string): string => {
+  if (!agg) return '';
+  switch (agg.toUpperCase()) {
+    case 'SUM':   return 'Total';
+    case 'AVG':   return 'Average';
+    case 'MIN':   return 'Min';
+    case 'MAX':   return 'Max';
+    case 'COUNT': return 'Count';
+    default:      return agg;
+  }
+};
+
 export function ResultsDisplay({ 
   data, 
   devMode, 
   onFollowUpClick, 
   darkMode, 
-  isLoading = false, 
+  isLoading = false,
   activeTypingMetrics = [],
-  relatedMetrics = [],
-  metadataMetrics = [],
   detectedState = null,
   detectedYear = null,
   cacheCatalog = [],
-  lineageNodes = []
+  lineageNodes = [],
+  queryLabel = '',
 }: ResultsDisplayProps) {
   const summaryRef = useRef<HTMLDivElement>(null);
 
   // If loading, show ghost metric cards only for metrics the user is asking about
   if (isLoading) {
-    // Build a fixed 4-slot list: detected metrics first, fill rest from relatedMetrics / metadataMetrics
-    const detected = activeTypingMetrics.slice(0, 4);
-    const fillerPool = [
-      ...relatedMetrics,
-      ...metadataMetrics.filter(m => !detected.includes(m) && !relatedMetrics.includes(m))
-    ];
-    // Fill up to 4 total
-    const fillerNeeded = Math.max(0, 4 - detected.length);
-    const filler = fillerPool.slice(0, fillerNeeded);
-    const slots = [...detected, ...filler]; // always 4 (or fewer if nothing at all)
-
-    // Only render the KPI row if the user has typed something that looks like a metric
-    const showKPIRow = detected.length > 0 || filler.length > 0;
-
     return (
-      <div className="p-6 space-y-6">
-        {showKPIRow && (
-          <div className="grid grid-cols-4 gap-4">
-            {slots.map((key, idx) => {
-              const isDetected = detected.includes(key);
-              const name = getMetricDisplayName(key);
-              return isDetected ? (
-                // Detected metric — solid card
-                <div
-                  key={`${key}-${idx}`}
-                  className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm rounded-2xl p-5 flex flex-col justify-between h-28"
-                >
-                  <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">{name}</p>
-                  <p className="text-2xl font-bold text-gray-200 dark:text-slate-700 select-none">—</p>
-                </div>
-              ) : (
-                // Related / filler metric — dashed & dimmed
-                <div
-                  key={`filler-${key}-${idx}`}
-                  className="bg-gray-50/60 dark:bg-slate-900/40 border border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between h-28 opacity-50"
-                >
-                  <p className="text-[10px] font-bold text-gray-300 dark:text-slate-600 uppercase tracking-wider">{name}</p>
-                  <p className="text-2xl font-bold text-gray-200 dark:text-slate-700 select-none">—</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* 2. Main Visualization Skeleton */}
-        <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800/80 shadow-sm rounded-2xl p-6">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-4">Visualization</h3>
-          <div className="h-[390px] w-full bg-gray-50/50 dark:bg-slate-950/20 border border-dashed border-gray-200 dark:border-slate-850 rounded-2xl flex items-center justify-center animate-pulse">
-            <div className="text-center space-y-3">
-              <div className="h-8 w-8 bg-gray-200 dark:bg-slate-800 rounded-full mx-auto" />
-              <div className="h-3 w-36 bg-gray-200 dark:bg-slate-800 rounded-full mx-auto" />
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Executive Summary & Data Table Skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-pulse">
-          {/* Executive Summary Skeleton */}
-          <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm rounded-2xl p-6 h-72 flex flex-col">
-            <div className="h-4 w-36 bg-gray-200 dark:bg-slate-800 rounded-full mb-4" />
-            <div className="flex-1 bg-gray-50 dark:bg-slate-950/40 rounded-2xl p-5 space-y-3">
-              <div className="h-3 w-full bg-gray-200 dark:bg-slate-800 rounded-full" />
-              <div className="h-3 w-5/6 bg-gray-200 dark:bg-slate-800 rounded-full" />
-              <div className="h-3 w-4/5 bg-gray-200 dark:bg-slate-800 rounded-full" />
-            </div>
-          </div>
-          {/* Data Table Skeleton */}
-          <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm rounded-2xl p-6 md:col-span-2 h-72 flex flex-col">
-            <div className="h-4 w-28 bg-gray-200 dark:bg-slate-800 rounded-full mb-4" />
-            <div className="flex-1 bg-gray-50 dark:bg-slate-950/40 rounded-2xl p-5 space-y-4">
-              <div className="flex space-x-4">
-                <div className="h-3 w-1/4 bg-gray-300 dark:bg-slate-700 rounded-full" />
-                <div className="h-3 w-1/4 bg-gray-300 dark:bg-slate-700 rounded-full" />
-                <div className="h-3 w-1/4 bg-gray-300 dark:bg-slate-700 rounded-full" />
-                <div className="h-3 w-1/4 bg-gray-300 dark:bg-slate-700 rounded-full" />
-              </div>
-              <div className="h-2 w-full bg-gray-200 dark:bg-slate-800 rounded-full" />
-              <div className="h-2 w-full bg-gray-200 dark:bg-slate-800 rounded-full" />
-              <div className="h-2 w-full bg-gray-200 dark:bg-slate-800 rounded-full" />
-              <div className="h-2 w-full bg-gray-200 dark:bg-slate-800 rounded-full" />
-            </div>
-          </div>
-        </div>
+      <div className="p-8">
+        <p className="text-sm text-stone-500 dark:text-slate-400">Running the query.</p>
       </div>
     );
   }
 
-  // Zero-Trust Error Recovery Cards
   if (data?.status === "clarification_required") {
     const suggestions = data.suggestions || [];
     return (
-      <div className="p-8 flex items-center justify-center min-h-[400px]">
-        <div className="max-w-md w-full bg-white dark:bg-slate-900 border border-blue-150 dark:border-blue-900/60 shadow-lg rounded-3xl p-6 text-center">
-          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-blue-600 dark:text-blue-400 text-lg font-bold">🔍</span>
-          </div>
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-2">Did you mean?</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed mb-6">
-            {data.message || "We detected some unknown entities. Did you mean one of these queries?"}
+      <div className="p-8">
+        <div className="max-w-md bg-white dark:bg-slate-900 border border-stone-300 dark:border-slate-800 p-5">
+          <h3 className="text-sm text-stone-900 dark:text-slate-100 mb-2">Did you mean</h3>
+          <p className="text-sm text-stone-500 dark:text-slate-400 mb-4">
+            {data.message || "That name was not found. Try one of these."}
           </p>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
             {suggestions.map((sug: string, idx: number) => (
               <button
                 key={`${sug}-${idx}`}
                 type="button"
                 onClick={() => onFollowUpClick(sug)}
-                className="px-4 py-3 text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-900 transition-all cursor-pointer shadow-sm text-center"
+                className="py-1.5 text-left text-sm text-stone-800 dark:text-slate-200 hover:underline"
               >
                 {sug}
               </button>
@@ -228,13 +156,19 @@ export function ResultsDisplay({
     );
   }
 
-  if (!data || !data.results) return null;
+  if (!data || !data.results || data.results.length === 0) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-slate-500">
+          {data?.status === 'success' || data?.status === 'error'
+            ? (data.message || 'No rows matched this question.')
+            : 'Ask a question in the sidebar, then press Enter.'}
+        </p>
+      </div>
+    );
+  }
 
-  const { results, sql_query, unit, plants_queried, insights, metadata, kpis } = data;
-
-  const scrollToSummary = () => {
-    summaryRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const { results, sql_query, unit, plants_queried, insights, metadata, kpis, aggregations, semantic_report } = data;
 
   const getCurrencyPrefix = () => {
     if (unit && unit.toLowerCase() === 'usd') {
@@ -278,13 +212,13 @@ export function ResultsDisplay({
   };
 
   const generateExecutiveSummary = () => {
-    if (!results || results.length === 0) return "No data available for summary.";
+    if (!results || results.length === 0) return { takeaway: 'No data available for this result.', detail: '' };
     
     const keys = Object.keys(results[0]);
     const detectedMetrics = extractMetrics(sql_query, results);
     const primaryMetric = detectedMetrics[0] ? detectedMetrics[0].replace(/_/g, ' ') : "data";
     
-    const numPlants = plants_queried || 8;
+    const numPlants = plants_queried || 0;
     
     let timeSpan = "the selected timeframe";
     const recordDateKey = keys.find(k => k.includes('date') || k === 'year');
@@ -322,16 +256,18 @@ export function ResultsDisplay({
       
       if (maxVal !== -Infinity) {
         const valFormatted = formatMetricValue(maxVal, primaryMetric);
-        const entityPart = maxEntity ? ` observed in ${maxEntity.replace(/_/g, ' ').toUpperCase()}` : "";
+        const entityPart = maxEntity ? ` in ${maxEntity.replace(/_/g, ' ')}` : "";
         const contextPart = (/^(19|20)\d{2}$/.test(maxKey) || valueKeys.length > 1) ? ` (${maxKey.replace(/_/g, ' ')})` : "";
         peakInsight = `Highest ${primaryMetric}${contextPart} of ${valFormatted}${entityPart}.`;
       }
     }
     
-    return `${primaryMetric.charAt(0).toUpperCase() + primaryMetric.slice(1)} analysis completed successfully. ` +
-           `Aggregated findings across ${numPlants} power plants. ` +
-           `Data span includes ${timeSpan}. ` +
-           `${peakInsight}`;
+    const metricLabel = primaryMetric.charAt(0).toUpperCase() + primaryMetric.slice(1);
+    const takeaway = peakInsight || metricLabel;
+    const detailParts = [];
+    if (timeSpan !== 'the selected timeframe') detailParts.push(`${metricLabel} from ${timeSpan}`);
+    if (numPlants > 0) detailParts.push(`across ${numPlants} plants`);
+    return { takeaway, detail: detailParts.join(', ') };
   };
 
   const getFollowUpQuestions = () => {
@@ -514,86 +450,66 @@ export function ResultsDisplay({
     ...kpiEntries.filter(([k]) => activeTypingMetrics.includes(k)),
     ...kpiEntries.filter(([k]) => !activeTypingMetrics.includes(k))
   ].slice(0, 4);
-  const realKeys = sortedKpiEntries.map(([k]) => k);
-  const ghostFillerPool = metadataMetrics.filter(m => !realKeys.includes(m));
-  const ghostFillerCount = Math.max(0, 4 - realKeys.length);
-  const ghostFiller = ghostFillerPool.slice(0, ghostFillerCount);
 
   return (
-    <div className="p-6 space-y-6">
-      {/* 1. Fixed 4-slot KPI grid */}
-      {(sortedKpiEntries.length > 0 || ghostFiller.length > 0) && (
-        <div className="grid grid-cols-4 gap-4">
-          {/* Real value cards */}
+    <div className="p-6 space-y-5">
+      {sortedKpiEntries.length > 0 && (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
           {sortedKpiEntries.map(([key, val], idx) => {
             const name = getMetricDisplayName(key);
             const formattedVal = formatKPIValue(val, key);
+            const aggLabel = aggregations ? getAggregationLabel(aggregations[key]) : '';
             return (
-              <div
-                key={`${key}-${idx}`}
-                className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm rounded-2xl p-5 flex flex-col justify-between h-28 hover:shadow-md transition-all"
-              >
-                <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">{name}</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-slate-100 tracking-tight">{formattedVal}</p>
+              <div key={`${key}-${idx}`} className="work-glass flex min-h-[108px] flex-col justify-between rounded-2xl border border-slate-200/80 bg-white px-5 py-4 dark:border-emerald-400/15 dark:bg-slate-900">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{name}</p>
+                  {aggLabel && <span className="text-[11px] text-emerald-700 dark:text-emerald-300/80">{aggLabel}</span>}
+                </div>
+                <p className={`mt-3 font-medium tracking-tight text-slate-900 dark:text-white ${String(formattedVal).length > 16 ? 'text-lg leading-snug' : 'text-2xl'}`}>{formattedVal}</p>
               </div>
             );
           })}
-          {/* Ghost filler cards for remaining slots */}
-          {ghostFiller.map((key, idx) => (
-            <div
-              key={`ghost-${key}-${idx}`}
-              className="bg-gray-50/60 dark:bg-slate-900/40 border border-dashed border-gray-200 dark:border-slate-800 rounded-2xl p-5 flex flex-col justify-between h-28 opacity-50"
-            >
-              <p className="text-[10px] font-bold text-gray-300 dark:text-slate-600 uppercase tracking-wider">{getMetricDisplayName(key)}</p>
-              <p className="text-2xl font-bold text-gray-200 dark:text-slate-700 select-none">—</p>
-            </div>
-          ))}
         </div>
       )}
 
-      {/* 2. Main Visualization */}
-      <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800/80 shadow-sm rounded-2xl p-6">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-4">Visualization</h3>
-        <div className="flex items-center justify-center">
-          <DataChart results={results} unit={unit} darkMode={darkMode} />
+      <div className="work-glass rounded-2xl border border-slate-200/80 bg-white px-5 py-4 dark:border-white/10 dark:bg-slate-900">
+        <div className="w-full">
+          <DataChart
+            results={results}
+            unit={unit}
+            darkMode={darkMode}
+            title={queryLabel.trim() || (extractMetrics(sql_query, results)[0] || 'Result').replace(/_/g, ' ')}
+          />
         </div>
+        {(() => {
+          const insight = generateExecutiveSummary();
+          return (
+            <div className="mt-4 border-t border-slate-100 pt-4 dark:border-white/10">
+              <p className="text-xs text-emerald-700 dark:text-emerald-300/80">Key insight</p>
+              <p className="mt-1.5 text-base font-medium leading-snug text-slate-900 dark:text-white">{insight.takeaway}</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-500 dark:text-slate-400">{insight.detail}</p>
+            </div>
+          );
+        })()}
       </div>
 
-      {/* Animated scroll indicator placed outside and below the card */}
-      <div 
-        onClick={scrollToSummary}
-        className="flex flex-col items-center justify-center py-2 text-slate-400 dark:text-slate-500 cursor-pointer group hover:text-blue-500 transition-colors animate-pulse"
-      >
-        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 group-hover:text-blue-500 transition-colors">
-          Scroll for Executive Summary & Data Table
-        </span>
-        <svg className="w-3.5 h-3.5 mt-0.5 text-slate-400 dark:text-slate-500 group-hover:text-blue-500 transition-colors animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
-
-      {/* 3. Executive Summary & 4. Results Table */}
-      <div ref={summaryRef} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Executive Summary */}
-        <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm rounded-2xl p-6 md:col-span-1 flex flex-col">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-3">Executive Summary</h3>
-          <div className="flex-1 bg-gray-50/50 dark:bg-slate-950/20 border border-gray-100/50 dark:border-slate-800/80 rounded-2xl p-5 text-sm leading-relaxed text-gray-600 dark:text-slate-300 font-medium">
-            {generateExecutiveSummary()}
-          </div>
-        </div>
-
-        {/* Results Table */}
-        <div className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 shadow-sm rounded-2xl p-6 md:col-span-2 flex flex-col">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-3">Data Table</h3>
-          <div className="flex-1 overflow-auto rounded-xl border border-gray-100 dark:border-slate-800 max-h-60">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-gray-50/80 dark:bg-slate-850/50 sticky top-0 font-bold border-b border-gray-100 dark:border-slate-800">
+      <div ref={summaryRef} className="rounded-2xl bg-white dark:bg-slate-900 px-5 py-4">
+        <h3 className="text-xs text-slate-500 mb-3">Table</h3>
+          <div className="overflow-auto max-h-72">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-stone-50 dark:bg-slate-800 sticky top-0 border-b border-stone-200 dark:border-slate-800">
                 <tr>
-                  {Object.keys(results[0] || {}).map((key, idx) => (
-                    <th key={`${key}-${idx}`} className="py-3 px-4 text-gray-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                      {key.replace(/_/g, ' ')}
-                    </th>
-                  ))}
+                  {Object.keys(results[0] || {}).map((key, idx) => {
+                    const aggLabel = aggregations ? getAggregationLabel(aggregations[key]) : '';
+                    return (
+                      <th key={`${key}-${idx}`} className="py-2 px-3 text-xs font-medium text-stone-500 dark:text-slate-400 whitespace-nowrap">
+                        <span className="capitalize">{key.replace(/_/g, ' ')}</span>
+                        {aggLabel && (
+                          <span className="ml-1 text-stone-400">{aggLabel}</span>
+                        )}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
@@ -610,9 +526,6 @@ export function ResultsDisplay({
             </table>
           </div>
         </div>
-      </div>
-
-
 
       {/* 6. Developer Mode Panel */}
       {devMode && (
@@ -990,6 +903,123 @@ export function ResultsDisplay({
               </table>
             </div>
           </div>
+
+          {/* 9. Workspace Semantic Intelligence — Phase 7E */}
+          {semantic_report && (
+            <div className="bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-900/40 shadow-sm rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                  9. Workspace Semantic Intelligence
+                </h4>
+                <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30">
+                  {semantic_report.workspace}
+                </span>
+              </div>
+
+              {/* Confidence Score */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Semantic Confidence</span>
+                  <span className={`text-sm font-bold ${
+                    (semantic_report.semantic_confidence || 0) >= 0.8
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : (semantic_report.semantic_confidence || 0) >= 0.5
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}>
+                    {((semantic_report.semantic_confidence || 0) * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full transition-all ${
+                      (semantic_report.semantic_confidence || 0) >= 0.8
+                        ? 'bg-emerald-500'
+                        : (semantic_report.semantic_confidence || 0) >= 0.5
+                        ? 'bg-amber-500'
+                        : 'bg-red-500'
+                    }`}
+                    style={{ width: `${((semantic_report.semantic_confidence || 0) * 100).toFixed(0)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
+                {[
+                  { label: 'Columns',    value: semantic_report.columns },
+                  { label: 'Metrics',    value: semantic_report.metrics_detected },
+                  { label: 'Dimensions', value: semantic_report.dimensions_detected },
+                  { label: 'Time Cols',  value: semantic_report.time_columns },
+                  { label: 'Identifiers', value: semantic_report.identifier_columns },
+                  { label: 'Aliases',    value: semantic_report.aliases_generated },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-slate-50/70 dark:bg-slate-950/25 rounded-xl p-2.5 border border-gray-100 dark:border-slate-800 text-center">
+                    <span className="block text-[9px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">{label}</span>
+                    <span className="text-lg font-bold text-gray-900 dark:text-slate-100">{value ?? '—'}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Warnings */}
+              {semantic_report.warnings && semantic_report.warnings.length > 0 && (
+                <div className="mb-4 space-y-1.5">
+                  {semantic_report.warnings.map((w: string, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-xl px-3 py-2">
+                      <span className="mt-0.5 flex-shrink-0">⚠</span>
+                      <span>{w}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Column Breakdown Table */}
+              {semantic_report.column_breakdown && (
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">Column Breakdown</p>
+                  <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-slate-850 max-h-64">
+                    <table className="w-full text-[11px] text-left">
+                      <thead className="bg-slate-50 dark:bg-slate-950/60 sticky top-0 border-b border-gray-100 dark:border-slate-850 font-bold text-gray-400 uppercase text-[9px] tracking-wider">
+                        <tr>
+                          <th className="py-2 px-3">Column</th>
+                          <th className="py-2 px-3">Class</th>
+                          <th className="py-2 px-3">Resolved As</th>
+                          <th className="py-2 px-3 text-center">Aliases</th>
+                          <th className="py-2 px-3">Unit</th>
+                          <th className="py-2 px-3">Agg</th>
+                          <th className="py-2 px-3">Sample Aliases</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-slate-850 font-medium text-gray-700 dark:text-slate-350">
+                        {Object.entries(semantic_report.column_breakdown).map(([col, info]: [string, any]) => (
+                          <tr key={col} className="hover:bg-slate-50/40 dark:hover:bg-slate-950/20 transition-colors">
+                            <td className="py-2 px-3 font-mono text-indigo-600 dark:text-indigo-400">{col}</td>
+                            <td className="py-2 px-3">
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
+                                info.classification === 'METRIC' ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400' :
+                                info.classification === 'DIMENSION' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400' :
+                                info.classification === 'TIME' ? 'bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400' :
+                                info.classification === 'IDENTIFIER' ? 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400' :
+                                'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400'
+                              }`}>{info.classification}</span>
+                            </td>
+                            <td className="py-2 px-3 text-gray-800 dark:text-slate-200 font-semibold">{info.resolved_as}</td>
+                            <td className="py-2 px-3 text-center font-mono">{info.aliases_count}</td>
+                            <td className="py-2 px-3 text-gray-500 dark:text-slate-400">{info.unit || '—'}</td>
+                            <td className="py-2 px-3 text-gray-500 dark:text-slate-400">{info.aggregation || '—'}</td>
+                            <td className="py-2 px-3 text-gray-400 dark:text-slate-500 truncate max-w-[180px]" title={info.aliases_preview?.join(', ')}>
+                              {info.aliases_preview?.slice(0, 3).join(', ')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Generated SQL */}
           {sql_query && (

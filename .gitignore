@@ -16,6 +16,13 @@ env/
 .venv/
 .env/
 
+# Secrets & environment files — NEVER commit API keys to git
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+
 # pytest
 .pytest_cache/
 .coverage
