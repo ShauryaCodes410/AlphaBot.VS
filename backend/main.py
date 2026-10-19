@@ -5228,36 +5228,39 @@ async def federated_query_processor(bp: Blueprint, raw_query: str, parsing_metad
 # --- FastAPI App ---
 from contextlib import asynccontextmanager
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # On startup
+def _boot_metadata() -> None:
     MetadataRegistry.get_instance()
     initialize_trie()
     try:
         load_user_databases()
     except Exception as e:
         logger.error(f"Failed to load user databases: {e}")
-    
-    # Pre-cache Suggested Business Questions only when explicitly enabled.
-    # Running five full federated queries on every boot can stall startup for minutes.
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Registry setup reads every database. It must not block the process from
+    # accepting connections, or the public site sits blank until boot finishes.
+    # Full federated precache stays off unless explicitly enabled.
     if os.getenv("ENABLE_STARTUP_PRECACHE", "false").lower() in ("true", "1", "yes"):
+        _boot_metadata()
         logger.info("Pre-caching suggested business questions...")
-    suggested_queries = [
-        "Top Capacity Plants",
-        "Revenue Trend",
-        "Budget Allocated by State",
-        "Completion Percentage by Project Type",
-        "Delay Days by Contractor"
-    ]
-    for q in suggested_queries:
-        try:
-            await handle_query(QueryBlueprintPayload(raw_query=q))
-        except Exception as e:
+        suggested_queries = [
+            "Top Capacity Plants",
+            "Revenue Trend",
+            "Budget Allocated by State",
+            "Completion Percentage by Project Type",
+            "Delay Days by Contractor",
+        ]
+        for q in suggested_queries:
+            try:
+                await handle_query(QueryBlueprintPayload(raw_query=q))
+            except Exception as e:
                 logger.warning(f"Failed to pre-cache '{q}': {e}")
         logger.info("Suggested business questions pre-cached.")
+    else:
+        threading.Thread(target=_boot_metadata, name="alphabot-boot", daemon=True).start()
     yield
-    # On shutdown
-    pass
 
 app = FastAPI(lifespan=lifespan)
 
@@ -6361,6 +6364,55 @@ class AuthPayload(BaseModel):
     email: str
     password: str
 
+class GoogleAuthPayload(BaseModel):
+    credential: str
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        "alphabot_session",
+        token,
+        httponly=True,
+        samesite="lax",
+        path="/",
+    )
+
+
+def _verify_google_credential(credential: str) -> Dict[str, str]:
+    """Check a Google ID token and return the verified email and subject."""
+    client_ids = [
+        part.strip()
+        for part in os.getenv("GOOGLE_CLIENT_ID", "").split(",")
+        if part.strip()
+    ]
+    if not client_ids:
+        raise HTTPException(status_code=503, detail="Google sign-in is not configured.")
+    token = (credential or "").strip()
+    if not token or len(token) > 8192 or token.count(".") != 2:
+        raise HTTPException(status_code=401, detail="Google sign-in could not be verified.")
+    try:
+        checked = httpx.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": token},
+            timeout=10.0,
+        )
+    except httpx.HTTPError:
+        raise HTTPException(status_code=401, detail="Google sign-in could not be verified.")
+    if checked.status_code != 200:
+        raise HTTPException(status_code=401, detail="Google sign-in could not be verified.")
+    data = checked.json()
+    if data.get("aud") not in client_ids:
+        raise HTTPException(status_code=401, detail="Google sign-in could not be verified.")
+    if data.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        raise HTTPException(status_code=401, detail="Google sign-in could not be verified.")
+    if str(data.get("email_verified")).lower() not in ("true", "1"):
+        raise HTTPException(status_code=401, detail="That Google account has no verified email.")
+    email = str(data.get("email") or "").strip().lower()
+    subject = str(data.get("sub") or "").strip()
+    if not email or not subject:
+        raise HTTPException(status_code=401, detail="Google did not return an email address.")
+    return {"email": email, "sub": subject}
+
 @app.post("/api/auth/register")
 def auth_register(payload: AuthPayload):
     from backend import accounts
@@ -6377,13 +6429,18 @@ def auth_login(payload: AuthPayload, response: Response):
     if not result:
         raise HTTPException(status_code=401, detail="Email or password is incorrect.")
     user, token = result
-    response.set_cookie(
-        "alphabot_session",
-        token,
-        httponly=True,
-        samesite="lax",
-        path="/",
-    )
+    _set_session_cookie(response, token)
+    return {"user": user}
+
+@app.post("/api/auth/google")
+def auth_google(payload: GoogleAuthPayload, response: Response):
+    from backend import accounts
+    identity = _verify_google_credential(payload.credential)
+    try:
+        user, token = accounts.login_with_google(identity["email"], identity["sub"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    _set_session_cookie(response, token)
     return {"user": user}
 
 @app.post("/api/auth/logout")

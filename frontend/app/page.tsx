@@ -1,10 +1,18 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { LandingPage } from '@/components/LandingPage';
-import { QueryInterface } from '@/components/QueryInterface';
-import { ResultsDisplay } from '@/components/ResultsDisplay';
 import { getOrCreateSessionId, clearSession, type ConversationContext } from '@/lib/session';
+
+const QueryInterface = dynamic(
+  () => import('@/components/QueryInterface').then((mod) => mod.QueryInterface),
+  { ssr: false },
+);
+const ResultsDisplay = dynamic(
+  () => import('@/components/ResultsDisplay').then((mod) => mod.ResultsDisplay),
+  { ssr: false },
+);
 
 const parseErrorMessage = (msg: string) => {
   let mainMsg = msg;
@@ -124,7 +132,6 @@ export default function Home() {
   const [dbLabels, setDbLabels] = useState<Record<string, string>>({});
   const [ownedDatabases, setOwnedDatabases] = useState<string[]>([]);
   const [authUser, setAuthUser] = useState<{ id: number; email: string } | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authEmail, setAuthEmail] = useState('');
@@ -215,8 +222,7 @@ export default function Home() {
         const data = await res.json();
         setAuthUser(data.user || null);
       })
-      .catch(() => setAuthUser(null))
-      .finally(() => setAuthChecked(true));
+      .catch(() => setAuthUser(null));
   }, []);
 
   // Load active projects/databases list once the user is signed in
@@ -253,7 +259,9 @@ export default function Home() {
   }, [authUser]);
 
   // A reload starts a blank question. The previous answer is not put back in the box.
+  // Visitors who are not signed in never call the backend for this.
   useEffect(() => {
+    if (!authUser) return;
     let cancelled = false;
     (async () => {
       try {
@@ -270,7 +278,7 @@ export default function Home() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [authUser]);
 
   // Load this database's metrics, years, groups, and starter questions
   useEffect(() => {
@@ -637,16 +645,37 @@ export default function Home() {
     }
   };
 
+  const signInWithGoogle = useCallback(async (credential: string) => {
+    if (!credential) {
+      setAuthError('Google sign-in is not configured on this site yet.');
+      return;
+    }
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Google sign-in failed');
+      setAuthUser(data.user);
+      setAuthOpen(false);
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Google sign-in failed');
+    } finally {
+      setAuthBusy(false);
+    }
+  }, []);
+
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     setAuthUser(null);
     setResults(null);
     setSelectedDb('default');
   };
-
-  if (!authChecked) {
-    return <div className="min-h-screen bg-[#05070d]" />;
-  }
 
   if (!authUser) {
     return (
@@ -666,6 +695,7 @@ export default function Home() {
         onEmail={setAuthEmail}
         onPassword={setAuthPassword}
         onSubmit={submitAuth}
+        onGoogle={signInWithGoogle}
         onToggleMode={() => {
           setAuthMode(authMode === 'login' ? 'register' : 'login');
           setAuthError(null);

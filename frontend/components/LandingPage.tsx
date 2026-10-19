@@ -37,8 +37,24 @@ type LandingPageProps = {
   onEmail: (value: string) => void;
   onPassword: (value: string) => void;
   onSubmit: () => void;
+  onGoogle: (credential: string) => void;
   onToggleMode: () => void;
 };
+
+type GoogleCredentialResponse = { credential?: string };
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (config: { client_id: string; callback: (response: GoogleCredentialResponse) => void }) => void;
+          renderButton: (parent: HTMLElement, options: Record<string, string | number>) => void;
+        };
+      };
+    };
+  }
+}
 
 const CHART_QUESTIONS = [
   {
@@ -89,7 +105,7 @@ const FEATURES: Array<{ title: string; body: string; icon: ReactNode }> = [
 ];
 
 const STEPS = [
-  ['Create an account', 'Sign up with email and a password of at least 8 characters.'],
+  ['Create an account', 'Continue with Google, or sign up with email and a password of at least 8 characters.'],
   ['Upload your data', 'Add a CSV, spreadsheet, or SQLite database from the projects view.'],
   ['Ask the question', 'Type it the way you would say it, then read the result for that database.'],
 ];
@@ -102,6 +118,69 @@ function linePoints(values: number[]) {
     const y = height - 8 - (value / 100) * (height - 20);
     return { x, y };
   });
+}
+
+function GoogleSignIn({ onGoogle, busy }: { onGoogle: (credential: string) => void; busy: boolean }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
+
+  useEffect(() => {
+    if (!clientId || !hostRef.current) return;
+    let cancelled = false;
+    const render = () => {
+      const host = hostRef.current;
+      const googleId = window.google?.accounts?.id;
+      if (cancelled || !host || !googleId) return;
+      googleId.initialize({
+        client_id: clientId,
+        callback: (response) => {
+          if (response.credential) onGoogle(response.credential);
+        },
+      });
+      host.replaceChildren();
+      googleId.renderButton(host, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text: 'continue_with',
+        shape: 'pill',
+        width: 340,
+        logo_alignment: 'left',
+      });
+    };
+    if (window.google?.accounts?.id) {
+      render();
+      return () => { cancelled = true; };
+    }
+    let script = document.querySelector<HTMLScriptElement>('script[data-alphabot-gsi]');
+    if (!script) {
+      script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.dataset.alphabotGsi = '1';
+      document.head.appendChild(script);
+    }
+    script.addEventListener('load', render);
+    return () => {
+      cancelled = true;
+      script?.removeEventListener('load', render);
+    };
+  }, [clientId, onGoogle]);
+
+  if (!clientId) {
+    return (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => onGoogle('')}
+        className="ab-btn ab-btn-ghost mt-6 w-full"
+      >
+        Continue with Google
+      </button>
+    );
+  }
+
+  return <div ref={hostRef} className="mt-6 flex min-h-11 justify-center" />;
 }
 
 function TrafficDots() {
@@ -398,6 +477,7 @@ export function LandingPage({
   onEmail,
   onPassword,
   onSubmit,
+  onGoogle,
 }: LandingPageProps) {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [chartIndex, setChartIndex] = useState(0);
@@ -803,10 +883,16 @@ export function LandingPage({
             </h2>
             <p className="ab-body mt-2 text-[15px]">
               {mode === 'login'
-                ? 'Sign in to the databases on your account.'
-                : 'A password of at least 8 characters. What you upload stays with you.'}
+                ? 'Use your Gmail account, or the email and password for this site.'
+                : 'Use your Gmail account, or an email and a password of at least 8 characters.'}
             </p>
-            <label className="mt-6 block text-[14px] font-medium text-[#d3dee1]">
+            <GoogleSignIn onGoogle={onGoogle} busy={busy} />
+            <div className="mt-5 flex items-center gap-3 text-[12px] uppercase tracking-[0.14em] text-[#8b9da5]">
+              <span className="h-px flex-1 bg-[rgba(220,255,245,0.12)]" />
+              or
+              <span className="h-px flex-1 bg-[rgba(220,255,245,0.12)]" />
+            </div>
+            <label className="mt-5 block text-[14px] font-medium text-[#d3dee1]">
               Email
               <input
                 type="email"

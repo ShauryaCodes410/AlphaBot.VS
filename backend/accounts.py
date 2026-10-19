@@ -28,7 +28,8 @@ def init() -> None:
                 id INTEGER PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                created_at REAL NOT NULL
+                created_at REAL NOT NULL,
+                google_sub TEXT
             );
             CREATE TABLE IF NOT EXISTS sessions (
                 token_hash TEXT PRIMARY KEY,
@@ -44,6 +45,13 @@ def init() -> None:
                 created_at REAL NOT NULL
             );
             """
+        )
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(users)")}
+        if "google_sub" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN google_sub TEXT")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub "
+            "ON users(google_sub) WHERE google_sub IS NOT NULL"
         )
 
 
@@ -104,6 +112,49 @@ def login(email: str, password: str) -> Optional[tuple]:
             (_token_hash(token), row["id"], time.time()),
         )
         return _user_row(row), token
+
+
+def _start_session(conn: sqlite3.Connection, user_id: int) -> str:
+    token = secrets.token_urlsafe(32)
+    conn.execute(
+        "INSERT INTO sessions (token_hash, user_id, created_at) VALUES (?, ?, ?)",
+        (_token_hash(token), user_id, time.time()),
+    )
+    return token
+
+
+def login_with_google(email: str, google_sub: str) -> tuple:
+    """Find or create the user for a verified Google account and start a session."""
+    init()
+    email = (email or "").strip().lower()
+    google_sub = (google_sub or "").strip()
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email) or not google_sub:
+        raise ValueError("Google did not return a usable email address.")
+    with _connect() as conn:
+        linked = conn.execute(
+            "SELECT id, email FROM users WHERE google_sub = ?",
+            (google_sub,),
+        ).fetchone()
+        row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        if linked and (not row or linked["id"] != row["id"]):
+            raise ValueError("This Google account is already used by another user.")
+        if row:
+            if row["google_sub"] and row["google_sub"] != google_sub:
+                raise ValueError("This email is already linked to a different Google account.")
+            if not row["google_sub"]:
+                conn.execute(
+                    "UPDATE users SET google_sub = ? WHERE id = ?",
+                    (google_sub, row["id"]),
+                )
+            user_id = row["id"]
+        else:
+            cur = conn.execute(
+                "INSERT INTO users (email, password_hash, created_at, google_sub) VALUES (?, ?, ?, ?)",
+                (email, _hash_password(secrets.token_urlsafe(32)), time.time(), google_sub),
+            )
+            user_id = cur.lastrowid
+        token = _start_session(conn, user_id)
+        return {"id": user_id, "email": email}, token
 
 
 def logout(token: Optional[str]) -> None:
