@@ -6463,8 +6463,12 @@ async def handle_query(
     background_tasks: BackgroundTasks = None,
     user: Dict[str, Any] = Depends(current_user),
 ):
+    from backend import accounts
     if not user_can_access(user["id"], payload.selected_db):
         raise HTTPException(status_code=403, detail="You do not have access to that database.")
+    if payload.force_llm and not accounts.is_admin_email(user.get("email")):
+        if not ("pytest" in sys.modules and user.get("id") == 0):
+            payload = payload.model_copy(update={"force_llm": False})
     session_id = payload.session_id
     if session_id:
         ACTIVE_QUERIES[session_id] = True

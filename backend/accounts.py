@@ -11,6 +11,12 @@ from typing import Any, Dict, List, Optional
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 CATALOG_PATH = os.path.join(DATA_DIR, "accounts.db")
+ADMIN_EMAIL = "shaurya55525@gmail.com"
+_EMAIL_RE = re.compile(
+    r"^[a-z0-9](?:[a-z0-9._%+\-]{0,62}[a-z0-9])?@"
+    r"(?:[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?\.)+"
+    r"[a-z]{2,24}$"
+)
 
 
 def _connect() -> sqlite3.Connection:
@@ -29,7 +35,8 @@ def init() -> None:
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 created_at REAL NOT NULL,
-                google_sub TEXT
+                google_sub TEXT,
+                password_chosen INTEGER NOT NULL DEFAULT 1
             );
             CREATE TABLE IF NOT EXISTS sessions (
                 token_hash TEXT PRIMARY KEY,
@@ -49,6 +56,10 @@ def init() -> None:
         columns = {row[1] for row in conn.execute("PRAGMA table_info(users)")}
         if "google_sub" not in columns:
             conn.execute("ALTER TABLE users ADD COLUMN google_sub TEXT")
+        if "password_chosen" not in columns:
+            conn.execute(
+                "ALTER TABLE users ADD COLUMN password_chosen INTEGER NOT NULL DEFAULT 1"
+            )
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub "
             "ON users(google_sub) WHERE google_sub IS NOT NULL"
@@ -76,26 +87,47 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def normalize_email(email: str) -> str:
+    cleaned = (email or "").strip().lower()
+    if not _EMAIL_RE.match(cleaned) or ".." in cleaned:
+        raise ValueError("Enter a valid email address.")
+    return cleaned
+
+
+def is_admin_email(email: Optional[str]) -> bool:
+    try:
+        return normalize_email(email or "") == ADMIN_EMAIL
+    except ValueError:
+        return False
+
+
 def _user_row(row: sqlite3.Row) -> Dict[str, Any]:
-    return {"id": row["id"], "email": row["email"]}
+    email = row["email"]
+    return {"id": row["id"], "email": email, "is_admin": is_admin_email(email)}
 
 
 def register(email: str, password: str) -> Dict[str, Any]:
     init()
-    email = (email or "").strip().lower()
-    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
-        raise ValueError("Enter a valid email address.")
+    email = normalize_email(email)
     if len(password or "") < 8:
         raise ValueError("Password must be at least 8 characters.")
     with _connect() as conn:
-        existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        existing = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
         if existing:
-            raise ValueError("An account with that email already exists.")
+            if _check_password(password, existing["password_hash"]):
+                return _user_row(existing)
+            if not existing["password_chosen"]:
+                conn.execute(
+                    "UPDATE users SET password_hash = ?, password_chosen = 1 WHERE id = ?",
+                    (_hash_password(password), existing["id"]),
+                )
+                return _user_row(existing)
+            raise ValueError("An account with that email already exists. Sign in with the password you saved.")
         cur = conn.execute(
-            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+            "INSERT INTO users (email, password_hash, created_at, password_chosen) VALUES (?, ?, ?, 1)",
             (email, _hash_password(password), time.time()),
         )
-        return {"id": cur.lastrowid, "email": email}
+        return {"id": cur.lastrowid, "email": email, "is_admin": is_admin_email(email)}
 
 
 def login(email: str, password: str) -> Optional[tuple]:
@@ -126,9 +158,12 @@ def _start_session(conn: sqlite3.Connection, user_id: int) -> str:
 def login_with_google(email: str, google_sub: str) -> tuple:
     """Find or create the user for a verified Google account and start a session."""
     init()
-    email = (email or "").strip().lower()
+    try:
+        email = normalize_email(email)
+    except ValueError:
+        raise ValueError("Google did not return a usable email address.")
     google_sub = (google_sub or "").strip()
-    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email) or not google_sub:
+    if not google_sub:
         raise ValueError("Google did not return a usable email address.")
     with _connect() as conn:
         linked = conn.execute(
@@ -149,12 +184,12 @@ def login_with_google(email: str, google_sub: str) -> tuple:
             user_id = row["id"]
         else:
             cur = conn.execute(
-                "INSERT INTO users (email, password_hash, created_at, google_sub) VALUES (?, ?, ?, ?)",
+                "INSERT INTO users (email, password_hash, created_at, google_sub, password_chosen) VALUES (?, ?, ?, ?, 0)",
                 (email, _hash_password(secrets.token_urlsafe(32)), time.time(), google_sub),
             )
             user_id = cur.lastrowid
         token = _start_session(conn, user_id)
-        return {"id": user_id, "email": email}, token
+        return {"id": user_id, "email": email, "is_admin": is_admin_email(email)}, token
 
 
 def logout(token: Optional[str]) -> None:

@@ -131,7 +131,7 @@ export default function Home() {
   const [federatedCount, setFederatedCount] = useState(8);
   const [dbLabels, setDbLabels] = useState<Record<string, string>>({});
   const [ownedDatabases, setOwnedDatabases] = useState<string[]>([]);
-  const [authUser, setAuthUser] = useState<{ id: number; email: string } | null>(null);
+  const [authUser, setAuthUser] = useState<{ id: number; email: string; is_admin?: boolean } | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authEmail, setAuthEmail] = useState('');
@@ -211,6 +211,13 @@ export default function Home() {
       window.removeEventListener('error', handleError, true);
     };
   }, []);
+
+  useEffect(() => {
+    if (!authUser?.is_admin) {
+      setDevMode(false);
+      setForceLLM(false);
+    }
+  }, [authUser]);
 
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
@@ -744,13 +751,15 @@ export default function Home() {
                 : (dbLabels[selectedDb] || selectedDb).replace(/_/g, ' ')}
             </span>
             <span className="hidden max-w-[160px] truncate text-xs md:inline">{authUser.email}</span>
-            <button
-              type="button"
-              onClick={() => setDevMode(!devMode)}
-              className={`shrink-0 whitespace-nowrap text-xs hover:text-slate-900 dark:hover:text-slate-100 ${devMode ? 'text-slate-900 dark:text-slate-100' : ''}`}
-            >
-              {devMode ? 'Dev on' : 'Dev'}
-            </button>
+            {authUser.is_admin && (
+              <button
+                type="button"
+                onClick={() => setDevMode(!devMode)}
+                className={`shrink-0 whitespace-nowrap text-xs hover:text-slate-900 dark:hover:text-slate-100 ${devMode ? 'text-slate-900 dark:text-slate-100' : ''}`}
+              >
+                {devMode ? 'Dev on' : 'Dev'}
+              </button>
+            )}
             <button
               type="button"
               aria-pressed={darkMode}
@@ -784,7 +793,7 @@ export default function Home() {
         <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col">
 
           {/* Developer Mode Panel */}
-          {devMode && (
+          {authUser.is_admin && devMode && (
             <div className="bg-white dark:bg-slate-900 border-b border-stone-300 dark:border-slate-800 px-5 py-3 max-h-[35vh] overflow-y-auto">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-6 flex-wrap">
